@@ -9,6 +9,8 @@ require (
 	gorm.io/gorm v1.25.12
 )
 
+require github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
+
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
