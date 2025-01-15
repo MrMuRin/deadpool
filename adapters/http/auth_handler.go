@@ -3,7 +3,7 @@ package http
 import (
 	"deadpool/adapters/auth"
 	"deadpool/core/services"
-	"deadpool/utils"
+	"deadpool/infrastructure/utils"
 	"encoding/base64"
 	"time"
 

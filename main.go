@@ -3,6 +3,7 @@ package main
 import (
 	"deadpool/adapters/auth"
 	"deadpool/adapters/http"
+	"deadpool/adapters/http/middlewares"
 	"deadpool/adapters/persistence"
 	"deadpool/config"
 	"deadpool/core/services"
@@ -20,32 +21,32 @@ func main() {
         log.Println("No .env file found, loading environment variables from system")
     }
 
-	clientID := os.Getenv("GOOGLE_CLIENT_ID")
-	clientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
-	redirectURL := "http://localhost:8080/api/auth/google/callback"
+    clientID := os.Getenv("GOOGLE_CLIENT_ID")
+    clientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+    redirectURL := "http://localhost:8080/api/auth/google/callback"
 
-	// ตั้งค่า Database
-	db := config.InitDB()
+    db := config.InitDB()
+    googleAuth := auth.NewGoogleAuth(clientID, clientSecret, redirectURL)
+    userRepo := persistence.NewUserRepository(db)
+    authService := services.AuthService{JWTSecret: "test", UserRepo: userRepo}
+	userService := services.UserService{UserRepo: userRepo}
+    authMiddleware := middlewares.NewAuthMiddleware(&authService)
 
-	googleAuth := auth.NewGoogleAuth(clientID, clientSecret, redirectURL)
 
-	// ตั้งค่า Repository
-	userRepo := persistence.NewUserRepository(db)
+    userHandler := http.NewUserHandler(&userService)
+    authHandler := http.NewAuthHandler(&authService, googleAuth)
 
-	// ตั้งค่า Service
-	authService := services.AuthService{UserRepo: userRepo}
+    app := fiber.New()
 
-	// ตั้งค่า Handlers
-	authHandler := http.AuthHandler{AuthService: &authService, GoogleAuth: googleAuth}
+    // Public Routes
+    app.Get("/api/auth/google/login", authHandler.GoogleLogin)
+    app.Get("/api/auth/google/callback", authHandler.GoogleCallback)
 
-	// ตั้งค่า Fiber
-	app := fiber.New()
+    // Protected Routes
+    api := app.Group("/api/auth")
+    api.Use(authMiddleware.Handle)
+    api.Get("/me", userHandler.GetMe)
 
-	// Public Routes
-	app.Get("/api/auth/google/login", authHandler.GoogleLogin)
-	app.Get("/api/auth/google/callback", authHandler.GoogleCallback)
-
-	// Start Server
-	log.Println("Starting server on :8080")
-	log.Fatal(app.Listen(":8080"))
+    log.Println("Starting server on :8080")
+    log.Fatal(app.Listen(":8080"))
 }
