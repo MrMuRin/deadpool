@@ -5,7 +5,6 @@ import (
 	"deadpool/core/services"
 	"deadpool/utils"
 	"encoding/base64"
-	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -40,7 +39,6 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No code in request"})
     }
 
-    // ถอดรหัส state เพื่อดึง redirectURL
     decodedState, err := base64.StdEncoding.DecodeString(state)
     if err != nil {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid state"})
@@ -76,7 +74,6 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
         SameSite: "Strict",
     })
 
-    // Redirect ผู้ใช้ไปยัง redirectURL พร้อมส่ง Token
-    return c.Redirect(fmt.Sprintf("%s?token=%s", redirectURL, jwtToken))
+    return c.Redirect(c.Query("redirectURL", redirectURL))
 }
 
