@@ -17,10 +17,10 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(authService *services.AuthService, googleAuth *auth.GoogleAuth) *AuthHandler {
-    return &AuthHandler{
-        AuthService: authService,
-        GoogleAuth:  googleAuth,
-    }
+	return &AuthHandler{
+		AuthService: authService,
+		GoogleAuth:  googleAuth,
+	}
 }
 
 func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
@@ -32,48 +32,42 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
-    code := c.Query("code")
-    state := c.Query("state")
+	code := c.Query("code")
+	state := c.Query("state")
 
-    if code == "" {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No code in request"})
-    }
+	if code == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No code in request"})
+	}
 
-    decodedState, err := base64.StdEncoding.DecodeString(state)
-    if err != nil {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid state"})
-    }
-    redirectURL := string(decodedState)
+	decodedState, err := base64.StdEncoding.DecodeString(state)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid state"})
+	}
+	redirectURL := string(decodedState)
 
-    token, err := h.GoogleAuth.Config.Exchange(c.Context(), code)
-    if err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to exchange token"})
-    }
+	token, err := h.GoogleAuth.Config.Exchange(c.Context(), code)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to exchange token"})
+	}
 
-    userInfo, err := h.GoogleAuth.GetUserInfo(token)
-    if err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get user info"})
-    }
+	userInfo, err := h.GoogleAuth.GetUserInfo(token)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get user info"})
+	}
 
-    user, err := h.AuthService.LoginWithGoogle(userInfo)
-    if err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to login with Google"})
-    }
+	jwtToken, err := utils.GenerateJWT(userInfo)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
+	}
 
-    jwtToken, err := utils.GenerateJWT(user.ID)
-    if err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
-    }
+	c.Cookie(&fiber.Cookie{
+		Name:     "authToken",
+		Value:    jwtToken,
+		Expires:  time.Now().Add(24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   false,
+		SameSite: "Strict",
+	})
 
-    c.Cookie(&fiber.Cookie{
-        Name:     "authToken",
-        Value:    jwtToken,
-        Expires:  time.Now().Add(24 * time.Hour),
-        HTTPOnly: true,
-        Secure:   false,
-        SameSite: "Strict",
-    })
-
-    return c.Redirect(c.Query("redirectURL", redirectURL))
+	return c.Redirect(c.Query("redirectURL", redirectURL))
 }
-
