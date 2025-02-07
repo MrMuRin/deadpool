@@ -2,8 +2,8 @@ package http
 
 import (
 	"deadpool/adapters/auth"
+	"deadpool/core/domain"
 	"deadpool/core/services"
-	"deadpool/infrastructure/utils"
 	"encoding/base64"
 	"time"
 
@@ -55,7 +55,28 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get user info"})
 	}
 
-	jwtToken, err := utils.GenerateJWT(userInfo)
+	googleID := userInfo["id"].(string)
+	email := userInfo["email"].(string)
+
+	user, err := h.AuthService.UserRepo.FindByGoogleID(googleID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
+	}
+
+	if user == nil {
+		user = &domain.User{
+			GoogleID: googleID,
+			Email:    email,
+			Name:     userInfo["name"].(string),
+			Avatar:   userInfo["picture"].(string),
+		}
+		err = h.AuthService.UserRepo.Create(user)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create user"})
+		}
+	}
+
+	jwtToken, err := h.AuthService.GenerateToken(user.ID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
 	}
